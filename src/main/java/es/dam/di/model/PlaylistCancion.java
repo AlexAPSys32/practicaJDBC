@@ -1,4 +1,4 @@
-package es.dam.di.Model;
+package es.dam.di.model;
 
 import java.util.Objects;
 
@@ -31,8 +31,8 @@ public class PlaylistCancion {
     }
 
     public void setPosicion(int posicion) {
-        if (posicion <= 0) {
-            throw new IllegalArgumentException("La posición debe ser mayor que 0");
+        if (posicion < 0) {
+            throw new IllegalArgumentException("La posición debe ser mayor o igual que 0");
         }
         this.posicion = posicion;
     }

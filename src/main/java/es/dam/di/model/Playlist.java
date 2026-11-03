@@ -1,4 +1,4 @@
-package es.dam.di.Model;
+package es.dam.di.model;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +46,9 @@ public class Playlist {
         return descripcion;
     }
 
-    /** La descripción es opcional (puede ser null). */
+    /**
+     * La descripción es opcional (puede ser null).
+     */
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
     }
@@ -71,6 +73,11 @@ public class Playlist {
             throw new IllegalArgumentException("La lista de canciones no puede ser nula");
         }
         this.canciones = canciones;
+    }
+
+    public void agregarCancion(Long cancionId) {
+        int siguientePosicion = canciones.size();
+        canciones.add(new PlaylistCancion(siguientePosicion, cancionId));
     }
 
     @Override

@@ -1,4 +1,4 @@
-package es.dam.di.Model;
+package es.dam.di.model;
 
 import java.util.Objects;
 
