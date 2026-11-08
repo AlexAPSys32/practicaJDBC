@@ -9,12 +9,13 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
+        <!-- Compila para Java 17: funciona con cualquier JDK 17 o superior (17, 21, 25...) -->
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
+        <!-- Base de datos H2 (modo fichero) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
