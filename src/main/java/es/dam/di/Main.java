@@ -12,19 +12,18 @@ import es.dam.di.model.Usuario;
 import es.dam.di.repository.IArtistaRepositorio;
 import es.dam.di.repository.ICancionRepositorio;
 import es.dam.di.repository.IPlaylistRepositorio;
-import es.dam.di.repository.IRepositorioExtend;
 import es.dam.di.repository.IUsuarioRepositorio;
 
 /**
- * Demostración de la práctica JDBC: usa todos los métodos de IRepositorio e
- * IRepositorioExtend en los cuatro repositorios, más sus métodos propios.
- * Se puede ejecutar varias veces: empieza y termina con la base de datos vacía.
+ * Demostración de la práctica JDBC (datos guardados en una base de datos H2).
+ * Va probando, apartado por apartado, todo lo que hacen los repositorios.
+ * Al empezar y al terminar las tablas quedan vacías, así que se puede ejecutar muchas veces.
  */
 public class Main {
 
-    private static final Long ID_INEXISTENTE = 999_999L;
-
     public static void main(String[] args) {
+
+        // Crea las tablas si no existen (lee el fichero schema.sql)
         BaseDatos.inicializar();
 
         // Los repositorios se declaran con el tipo de la interfaz
@@ -33,17 +32,26 @@ public class Main {
         ICancionRepositorio canciones = new CancionRepositorioJdbc();
         IPlaylistRepositorio playlists = new PlaylistRepositorioJdbc();
 
-        // Limpieza inicial (por si una ejecución anterior se quedó a medias).
-        // El ON DELETE CASCADE borra también playlists, canciones y playlist_cancion.
-        usuarios.deleteAll();
-        artistas.deleteAll();
+        // Un id que no existe en ningún repositorio, para probar búsquedas que no encuentran nada
+        Long idQueNoExiste = 999999L;
 
-        // ===================== 1. INSERCIÓN =====================
-        titulo("1. INSERCIÓN: save() con id nulo");
+        // ============================================================
+        System.out.println("===== 0. EMPEZAR DE CERO =====");
+        System.out.println("Borramos todo lo que hubiera de otras ejecuciones.");
+        usuarios.deleteAll();   // borra los usuarios y, en cascada, sus playlists
+        artistas.deleteAll();   // borra los artistas y, en cascada, sus canciones
+        System.out.println("Artistas: " + artistas.count() + ", canciones: " + canciones.count() + ", usuarios: " + usuarios.count() + ", playlists: " + playlists.count());
+
+        // ============================================================
+        System.out.println("\n===== 1. GUARDAR DATOS NUEVOS (save) =====");
+        System.out.println("Creamos objetos nuevos y los guardamos. Al crearlos no tienen id;");
+        System.out.println("la base de datos se lo pone al guardarlos (puede que no empiece en 1, porque el contador no se reinicia al borrar).");
+
         Artista queen = artistas.save(new Artista("Queen", "Reino Unido"));
         Artista rosalia = artistas.save(new Artista("Rosalía", "España"));
         Artista estopa = artistas.save(new Artista("Estopa", "España"));
 
+        // Cada canción dice de qué artista es con el id del artista
         Cancion bohemian = canciones.save(new Cancion("Bohemian Rhapsody", 354, queen.getId()));
         Cancion dontStop = canciones.save(new Cancion("Don't Stop Me Now", 209, queen.getId()));
         Cancion malamente = canciones.save(new Cancion("Malamente", 150, rosalia.getId()));
@@ -52,6 +60,7 @@ public class Main {
         Usuario ana = usuarios.save(new Usuario("Ana", "ana@correo.com"));
         Usuario luis = usuarios.save(new Usuario("Luis", "luis@correo.com"));
 
+        // Cada playlist dice de qué usuario es, y se le van añadiendo canciones
         Playlist rock = new Playlist("Rock clásico", "Lo mejor del rock", ana.getId());
         rock.agregarCancion(bohemian.getId());
         rock.agregarCancion(dontStop.getId());
@@ -67,124 +76,216 @@ public class Main {
         favoritas.agregarCancion(vinoTinto.getId());
         playlists.save(favoritas);
 
-        System.out.println("Los ids los genera la base de datos:");
+        System.out.println("Ya tienen id:");
         System.out.println("  " + queen);
         System.out.println("  " + bohemian);
         System.out.println("  " + ana);
         System.out.println("  " + rock);
 
-        // ===================== 2. CONSULTAS =====================
-        titulo("2. CONSULTAS: count, existsById, findById, findAll, findByIdOptional, findAllToList");
-        demostrarConsultas("ARTISTA", artistas, queen.getId());
-        demostrarConsultas("CANCION", canciones, bohemian.getId());
-        demostrarConsultas("USUARIO", usuarios, ana.getId());
-        demostrarConsultas("PLAYLIST", playlists, rock.getId());
+        // ============================================================
+        System.out.println("\n===== 2. CONSULTAR DATOS (count, existsById, findById, findAll) =====");
+        System.out.println("count = cuántos hay | existsById = si existe ese id (true/false)");
+        System.out.println("findById = devuelve el objeto con ese id (null si no existe) | findAll = todos");
 
-        // ===================== 3. ACTUALIZACIÓN =====================
-        titulo("3. ACTUALIZACIÓN: buscar y volver a guardar");
-        Artista artistaEditado = artistas.findById(estopa.getId());
-        artistaEditado.setNombre("Estopa (dúo)");
-        artistas.save(artistaEditado);
-        System.out.println("Artista tras guardar: " + artistas.findById(estopa.getId()));
+        System.out.println("\n--- Artistas ---");
+        System.out.println("Cuántos hay: " + artistas.count());
+        System.out.println("¿Existe el id " + queen.getId() + "? " + artistas.existsById(queen.getId()));
+        System.out.println("¿Existe el id " + idQueNoExiste + "? " + artistas.existsById(idQueNoExiste));
+        System.out.println("Buscar el id " + queen.getId() + ": " + artistas.findById(queen.getId()));
+        System.out.println("Buscar el id " + idQueNoExiste + ": " + artistas.findById(idQueNoExiste));
+        System.out.println("Todos:");
+        for (Artista a : artistas.findAll()) {
+            System.out.println("  " + a);
+        }
 
-        Playlist playlistEditada = playlists.findById(rock.getId());
-        playlistEditada.setDescripcion("Rock y algo más");
-        playlistEditada.agregarCancion(malamente.getId());
-        playlists.save(playlistEditada);
-        Playlist recargada = playlists.findById(rock.getId());
-        System.out.println("Playlist tras guardar: " + recargada);
-        System.out.println("  canciones: " + recargada.getCanciones());
+        System.out.println("\n--- Canciones ---");
+        System.out.println("Cuántas hay: " + canciones.count());
+        System.out.println("¿Existe el id " + bohemian.getId() + "? " + canciones.existsById(bohemian.getId()));
+        System.out.println("¿Existe el id " + idQueNoExiste + "? " + canciones.existsById(idQueNoExiste));
+        System.out.println("Buscar el id " + bohemian.getId() + ": " + canciones.findById(bohemian.getId()));
+        System.out.println("Buscar el id " + idQueNoExiste + ": " + canciones.findById(idQueNoExiste));
+        System.out.println("Todas:");
+        for (Cancion c : canciones.findAll()) {
+            System.out.println("  " + c);
+        }
 
-        probar("save de un artista con id que no existe",
-                () -> artistas.save(new Artista(ID_INEXISTENTE, "Fantasma", "Ninguno")));
+        System.out.println("\n--- Usuarios ---");
+        System.out.println("Cuántos hay: " + usuarios.count());
+        System.out.println("¿Existe el id " + ana.getId() + "? " + usuarios.existsById(ana.getId()));
+        System.out.println("¿Existe el id " + idQueNoExiste + "? " + usuarios.existsById(idQueNoExiste));
+        System.out.println("Buscar el id " + ana.getId() + ": " + usuarios.findById(ana.getId()));
+        System.out.println("Buscar el id " + idQueNoExiste + ": " + usuarios.findById(idQueNoExiste));
+        System.out.println("Todos:");
+        for (Usuario u : usuarios.findAll()) {
+            System.out.println("  " + u);
+        }
 
-        // ===================== 4. MÉTODOS PROPIOS =====================
-        titulo("4. MÉTODOS PROPIOS de cada repositorio");
-        System.out.println("artistas.findByPais(\"España\")            -> " + artistas.findByPais("España"));
-        System.out.println("artistas.findByNombreContaining(\"QUE\")   -> " + artistas.findByNombreContaining("QUE"));
-        System.out.println("canciones.findByArtistaId(Queen)         -> " + canciones.findByArtistaId(queen.getId()));
-        System.out.println("canciones.findByTituloContaining(\"vino\") -> " + canciones.findByTituloContaining("vino"));
-        System.out.println("usuarios.findByEmail(\"ana@correo.com\")   -> " + usuarios.findByEmail("ana@correo.com"));
-        System.out.println("usuarios.findByEmail(\"no@existe.com\")    -> " + usuarios.findByEmail("no@existe.com"));
-        System.out.println("usuarios.existsByEmail(\"ana@correo.com\") -> " + usuarios.existsByEmail("ana@correo.com"));
-        System.out.println("usuarios.existsByEmail(\"no@existe.com\")  -> " + usuarios.existsByEmail("no@existe.com"));
-        System.out.println("playlists.findByUsuarioId(Ana)           -> " + playlists.findByUsuarioId(ana.getId()));
-        System.out.println("playlists.findByNombreContaining(\"FAV\")  -> " + playlists.findByNombreContaining("FAV"));
+        System.out.println("\n--- Playlists ---");
+        System.out.println("Cuántas hay: " + playlists.count());
+        System.out.println("¿Existe el id " + rock.getId() + "? " + playlists.existsById(rock.getId()));
+        System.out.println("¿Existe el id " + idQueNoExiste + "? " + playlists.existsById(idQueNoExiste));
+        System.out.println("Buscar el id " + rock.getId() + ": " + playlists.findById(rock.getId()));
+        System.out.println("Buscar el id " + idQueNoExiste + ": " + playlists.findById(idQueNoExiste));
+        System.out.println("Todas:");
+        for (Playlist p : playlists.findAll()) {
+            System.out.println("  " + p);
+        }
 
-        // ===================== 5. ARGUMENTOS NULOS =====================
-        titulo("5. ARGUMENTOS NULOS: IllegalArgumentException (según el Javadoc de las interfaces)");
-        demostrarNulos("ARTISTA", artistas);
-        demostrarNulos("CANCION", canciones);
-        demostrarNulos("USUARIO", usuarios);
-        demostrarNulos("PLAYLIST", playlists);
+        // ============================================================
+        System.out.println("\n===== 3. CONSULTAR DE OTRA FORMA (findByIdOptional, findAllToList) =====");
+        System.out.println("findByIdOptional hace lo mismo que findById, pero en vez de null devuelve una caja:");
+        System.out.println("  Optional[...] = ha encontrado el objeto | Optional.empty = no lo ha encontrado");
+        System.out.println("findAllToList devuelve todos los objetos en una lista (se puede saber cuántos son).");
 
-        // ===================== 6. BORRADO =====================
-        titulo("6. BORRADO: deleteById y deleteAll");
+        System.out.println("\n--- Artistas ---");
+        System.out.println("Con id " + queen.getId() + ": " + artistas.findByIdOptional(queen.getId()));
+        System.out.println("Con id " + idQueNoExiste + ": " + artistas.findByIdOptional(idQueNoExiste));
+        System.out.println("Lista: " + artistas.findAllToList().size() + " artistas");
+
+        System.out.println("\n--- Canciones ---");
+        System.out.println("Con id " + bohemian.getId() + ": " + canciones.findByIdOptional(bohemian.getId()));
+        System.out.println("Con id " + idQueNoExiste + ": " + canciones.findByIdOptional(idQueNoExiste));
+        System.out.println("Lista: " + canciones.findAllToList().size() + " canciones");
+
+        System.out.println("\n--- Usuarios ---");
+        System.out.println("Con id " + ana.getId() + ": " + usuarios.findByIdOptional(ana.getId()));
+        System.out.println("Con id " + idQueNoExiste + ": " + usuarios.findByIdOptional(idQueNoExiste));
+        System.out.println("Lista: " + usuarios.findAllToList().size() + " usuarios");
+
+        System.out.println("\n--- Playlists ---");
+        System.out.println("Con id " + rock.getId() + ": " + playlists.findByIdOptional(rock.getId()));
+        System.out.println("Con id " + idQueNoExiste + ": " + playlists.findByIdOptional(idQueNoExiste));
+        System.out.println("Lista: " + playlists.findAllToList().size() + " playlists");
+
+        // ============================================================
+        System.out.println("\n===== 4. CAMBIAR DATOS QUE YA EXISTEN =====");
+        System.out.println("Para cambiar algo: se busca, se cambia y se vuelve a guardar con save.");
+
+        System.out.println("\n--- Artista ---");
+        Artista estopaCambiado = artistas.findById(estopa.getId());
+        estopaCambiado.setNombre("Estopa (dúo)");
+        System.out.println("Hemos cambiado el nombre pero todavía NO hemos guardado.");
+        System.out.println("En la base de datos sigue: " + artistas.findById(estopa.getId()).getNombre());
+        artistas.save(estopaCambiado);
+        System.out.println("Ahora sí hemos guardado. En la base de datos: " + artistas.findById(estopa.getId()).getNombre());
+
+        System.out.println("\n--- Playlist ---");
+        Playlist rockCambiada = playlists.findById(rock.getId());
+        rockCambiada.setDescripcion("Rock y algo más");
+        rockCambiada.agregarCancion(malamente.getId());
+        playlists.save(rockCambiada);
+        Playlist rockGuardada = playlists.findById(rock.getId());
+        System.out.println("Descripción nueva: " + rockGuardada.getDescripcion());
+        System.out.println("Canciones que tiene ahora: " + rockGuardada.getCanciones().size());
+
+        // ============================================================
+        System.out.println("\n===== 5. BÚSQUEDAS PROPIAS DE CADA REPOSITORIO =====");
+        System.out.println("Cada repositorio tiene búsquedas especiales además de las básicas.");
+
+        System.out.println("\n--- Artistas ---");
+        System.out.println("Artistas de España: " + artistas.findByPais("España"));
+        System.out.println("Artistas con \"que\" en el nombre: " + artistas.findByNombreContaining("que"));
+
+        System.out.println("\n--- Canciones ---");
+        System.out.println("Canciones de Queen: " + canciones.findByArtistaId(queen.getId()));
+        System.out.println("Canciones con \"vino\" en el título: " + canciones.findByTituloContaining("vino"));
+
+        System.out.println("\n--- Usuarios ---");
+        System.out.println("Usuario con el email ana@correo.com: " + usuarios.findByEmail("ana@correo.com"));
+        System.out.println("Usuario con el email no@existe.com: " + usuarios.findByEmail("no@existe.com"));
+        System.out.println("¿Hay alguien con ana@correo.com? " + usuarios.existsByEmail("ana@correo.com"));
+        System.out.println("¿Hay alguien con no@existe.com? " + usuarios.existsByEmail("no@existe.com"));
+
+        System.out.println("\n--- Playlists ---");
+        System.out.println("Playlists de Ana: " + playlists.findByUsuarioId(ana.getId()));
+        System.out.println("Playlists con \"fav\" en el nombre: " + playlists.findByNombreContaining("fav"));
+
+        // ============================================================
+        System.out.println("\n===== 6. ERRORES QUE EL PROGRAMA AVISA =====");
+        System.out.println("En estos casos el repositorio no hace nada y lanza un error con un mensaje.");
+        System.out.println("(Se prueban con el repositorio de artistas; los demás funcionan igual.)");
+
+        try {
+            artistas.findById(null);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Buscar con id vacío (null): " + e.getMessage());
+        }
+
+        try {
+            artistas.existsById(null);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Preguntar si existe con id vacío (null): " + e.getMessage());
+        }
+
+        try {
+            artistas.findByIdOptional(null);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Buscar (Optional) con id vacío (null): " + e.getMessage());
+        }
+
+        try {
+            artistas.deleteById(null);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Borrar con id vacío (null): " + e.getMessage());
+        }
+
+        try {
+            artistas.save(null);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Guardar un artista vacío (null): " + e.getMessage());
+        }
+
+        try {
+            artistas.save(new Artista(idQueNoExiste, "Fantasma", "Ninguno"));
+        } catch (IllegalArgumentException e) {
+            System.out.println("Guardar un artista con un id que no existe: " + e.getMessage());
+        }
+
+        // El email es UNIQUE en la base de datos: ella misma rechaza el email repetido
+        try {
+            usuarios.save(new Usuario("Otra Ana", "ana@correo.com"));
+        } catch (IllegalStateException e) {
+            System.out.println("Guardar un usuario con un email repetido: la base de datos lo rechaza (" + e.getMessage() + ")");
+        }
+
+        // ============================================================
+        System.out.println("\n===== 7. BORRAR DATOS (deleteById) =====");
+        System.out.println("Algunos borrados arrastran a otros datos (ON DELETE CASCADE): al borrar algo, lo que depende de ello también se borra.");
+
+        System.out.println("\n--- Borrar una playlist ---");
         playlists.deleteById(correr.getId());
-        System.out.println("deleteById(playlist 'Para correr') -> existe: "
-                + playlists.existsById(correr.getId()) + ", quedan " + playlists.count() + " playlists");
+        System.out.println("¿Existe todavía \"Para correr\"? " + playlists.existsById(correr.getId()));
+        System.out.println("Playlists que quedan: " + playlists.count());
 
-        playlists.deleteById(ID_INEXISTENTE);
-        System.out.println("deleteById(id inexistente) -> no hace nada, quedan " + playlists.count() + " playlists");
+        System.out.println("\n--- Borrar un id que no existe ---");
+        playlists.deleteById(idQueNoExiste);
+        System.out.println("No pasa nada. Playlists que quedan: " + playlists.count());
 
-        canciones.deleteById(vinoTinto.getId());
-        System.out.println("deleteById(cancion 'Vino tinto') -> quedan " + canciones.count() + " canciones");
+        System.out.println("\n--- Borrar una canción ---");
+        System.out.println("\"Rock clásico\" tiene " + playlists.findById(rock.getId()).getCanciones().size() + " canciones antes de borrar \"Bohemian Rhapsody\".");
+        canciones.deleteById(bohemian.getId());
+        System.out.println("Canciones que quedan: " + canciones.count());
+        System.out.println("\"Rock clásico\" tiene " + playlists.findById(rock.getId()).getCanciones().size() + " canciones: la canción también se ha quitado de la playlist.");
 
+        System.out.println("\n--- Borrar un artista ---");
+        artistas.deleteById(queen.getId());
+        System.out.println("Artistas que quedan: " + artistas.count());
+        System.out.println("Canciones que quedan: " + canciones.count() + " (se han borrado las de Queen)");
+
+        System.out.println("\n--- Borrar un usuario ---");
         usuarios.deleteById(luis.getId());
-        System.out.println("deleteById(usuario Luis) -> quedan " + usuarios.count() + " usuarios y "
-                + playlists.count() + " playlists (su playlist se borró en cascada)");
+        System.out.println("Usuarios que quedan: " + usuarios.count());
+        System.out.println("Playlists que quedan: " + playlists.count() + " (se ha borrado la playlist de Luis)");
 
-        artistas.deleteById(estopa.getId());
-        System.out.println("deleteById(artista Estopa) -> quedan " + artistas.count() + " artistas");
-
+        // ============================================================
+        System.out.println("\n===== 8. BORRAR TODO (deleteAll) =====");
+        System.out.println("Dejamos todo vacío otra vez.");
         playlists.deleteAll();
         canciones.deleteAll();
         usuarios.deleteAll();
         artistas.deleteAll();
-        System.out.println("deleteAll() en los cuatro repositorios -> artistas: " + artistas.count()
-                + ", canciones: " + canciones.count() + ", usuarios: " + usuarios.count()
-                + ", playlists: " + playlists.count());
+        System.out.println("Artistas: " + artistas.count() + ", canciones: " + canciones.count() + ", usuarios: " + usuarios.count() + ", playlists: " + playlists.count());
 
         System.out.println("\nDemostración terminada.");
-    }
-
-    /** Usa los métodos de consulta de IRepositorio e IRepositorioExtend con cualquier repositorio. */
-    private static <T> void demostrarConsultas(String nombre, IRepositorioExtend<T, Long> repo, Long idExistente) {
-        System.out.println("\n--- " + nombre + " ---");
-        System.out.println("count()                         -> " + repo.count());
-        System.out.println("existsById(" + idExistente + ")                -> " + repo.existsById(idExistente));
-        System.out.println("existsById(inexistente)         -> " + repo.existsById(ID_INEXISTENTE));
-        System.out.println("findById(" + idExistente + ")                  -> " + repo.findById(idExistente));
-        System.out.println("findById(inexistente)           -> " + repo.findById(ID_INEXISTENTE));
-        System.out.println("findAll():");
-        for (T entidad : repo.findAll()) {
-            System.out.println("    " + entidad);
-        }
-        System.out.println("findByIdOptional(" + idExistente + ")          -> " + repo.findByIdOptional(idExistente));
-        System.out.println("findByIdOptional(inexistente)   -> " + repo.findByIdOptional(ID_INEXISTENTE));
-        System.out.println("findAllToList()                 -> " + repo.findAllToList().size() + " elementos");
-    }
-
-    /** Comprueba que los métodos lanzan IllegalArgumentException al recibir null. */
-    private static <T> void demostrarNulos(String nombre, IRepositorioExtend<T, Long> repo) {
-        System.out.println("\n--- " + nombre + " ---");
-        probar("existsById(null)", () -> repo.existsById(null));
-        probar("findById(null)", () -> repo.findById(null));
-        probar("findByIdOptional(null)", () -> repo.findByIdOptional(null));
-        probar("deleteById(null)", () -> repo.deleteById(null));
-        probar("save(null)", () -> repo.save(null));
-    }
-
-    private static void probar(String descripcion, Runnable accion) {
-        try {
-            accion.run();
-            System.out.println(descripcion + " -> NO lanzó excepción");
-        } catch (IllegalArgumentException e) {
-            System.out.println(descripcion + " -> IllegalArgumentException: " + e.getMessage());
-        }
-    }
-
-    private static void titulo(String texto) {
-        System.out.println("\n===== " + texto + " =====");
     }
 }
